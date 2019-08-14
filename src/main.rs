@@ -68,8 +68,16 @@ fn parse_msg(msg: &str) -> Option<Msg> {
 
 fn main() -> Result<(), std::io::Error> {
     let args: Vec<String> = std::env::args().collect();
-    let program = &args[1];
-    let subdirectories = fs::read_dir(".")?;
+    let program = if let Some(program) = args.get(1) {
+        program
+    } else {
+        panic!("Usage: {} <program> [root_dir]");
+    };
+
+    let default_root_dir = ".".to_string();
+    let root_dir = args.get(2).unwrap_or(&default_root_dir);
+
+    let subdirectories = fs::read_dir(root_dir)?;
 
     let mut processes = std::collections::HashMap::new();
 
@@ -80,8 +88,9 @@ fn main() -> Result<(), std::io::Error> {
             println!("Ignoring non-directory: {:?}", path);
             continue;
         }
+        let sub_name = path.file_name().unwrap().to_str().unwrap();
         let mut process = Subprocess::new(path.to_str().unwrap().to_string())?;
-        process.start(&program)?;
+        process.start(&program.replace("{}", sub_name))?;
         if let Some(name) = path.file_name() {
             processes.insert(name.to_str().unwrap().to_string(), process);
         }
