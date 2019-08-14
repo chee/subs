@@ -2,7 +2,8 @@ extern crate regex;
 
 use regex::Regex;
 use std::fs;
-use std::io::Read;
+use std::io::prelude::*;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
 use std::os::unix::prelude::*;
 use std::process::{Child, Command};
@@ -55,12 +56,21 @@ impl Subprocess {
         std::path::Path::new(&format!("{}/{}", &self.dir, file)).to_owned()
     }
 
+    fn chmod(&self, file: &str) -> Result<(), std::io::Error> {
+        let path = self.get_file_path(file);
+        let mut perms = fs::metadata(&path)?.permissions();
+        perms.set_mode(0o775);
+        fs::set_permissions(&path, perms)?;
+        Ok(())
+    }
+
     fn start(&mut self) -> Result<(), std::io::Error> {
         fs::remove_file(self.get_file_path("application/sock")).unwrap_or_default();
         if let Some(process) = &mut self.process {
             process.kill()?;
         }
         self.process = Some(self.make_process()?);
+        self.chmod("application/sock")?;
         Ok(())
     }
 }
