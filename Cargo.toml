@@ -1,4 +1,6 @@
 [package]
+description = "Run a command simultaneously in every subdirectory, and manage with a socket."
+license = "GPL-3.0+"
 authors = ["chee <chee@snoot.club>"]
 edition = "2018"
 name = "subsock"

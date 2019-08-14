@@ -1,6 +1,6 @@
 # subsock
 
-Run a program in all subdirectories.
+Run a command simultaneously in every subdirectory, and manage with a socket.
 
 ```
 Usage: target/debug/subsock [options] PROGRAM [root_dir]
