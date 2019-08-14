@@ -3,20 +3,9 @@ extern crate regex;
 use regex::Regex;
 use std::fs;
 use std::io::prelude::*;
-use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
 use std::os::unix::prelude::*;
 use std::process::{Child, Command};
-
-fn run_npm_command(cmd: &str, path: &str, uid: u32, gid: u32) -> Result<Child, std::io::Error> {
-    Command::new("npm")
-        .arg(cmd)
-        .arg("--prefix")
-        .arg(path)
-        .uid(uid)
-        .gid(gid)
-        .spawn()
-}
 
 struct Subprocess {
     uid: u32,
@@ -26,13 +15,14 @@ struct Subprocess {
 }
 
 impl Subprocess {
-    fn make_process(&self) -> Result<Child, std::io::Error> {
-        run_npm_command(
-            "start",
-            self.get_file_path("application").to_str().unwrap(),
-            self.uid,
-            self.gid,
-        )
+    fn make_process(&self, program: &str) -> Result<Child, std::io::Error> {
+        Command::new("sh")
+            .arg("-c")
+            .arg(program)
+            .current_dir(&self.dir)
+            .uid(self.uid)
+            .gid(self.gid)
+            .spawn()
     }
 
     fn new(sub: String) -> Result<Subprocess, std::io::Error> {
@@ -40,37 +30,19 @@ impl Subprocess {
         let uid = sub_metadata.uid();
         let gid = sub_metadata.gid();
 
-        let mut s = Subprocess {
+        Ok(Subprocess {
             uid,
             gid,
             dir: sub,
             process: None,
-        };
-
-        s.start()?;
-
-        Ok(s)
+        })
     }
 
-    fn get_file_path(&self, file: &str) -> std::path::PathBuf {
-        std::path::Path::new(&format!("{}/{}", &self.dir, file)).to_owned()
-    }
-
-    fn chmod(&self, file: &str) -> Result<(), std::io::Error> {
-        let path = self.get_file_path(file);
-        let mut perms = fs::metadata(&path)?.permissions();
-        perms.set_mode(0o775);
-        fs::set_permissions(&path, perms)?;
-        Ok(())
-    }
-
-    fn start(&mut self) -> Result<(), std::io::Error> {
-        fs::remove_file(self.get_file_path("application/sock")).unwrap_or_default();
+    fn start(&mut self, program: &str) -> Result<(), std::io::Error> {
         if let Some(process) = &mut self.process {
             process.kill()?;
         }
-        self.process = Some(self.make_process()?);
-        self.chmod("application/sock")?;
+        self.process = Some(self.make_process(program)?);
         Ok(())
     }
 }
@@ -95,6 +67,8 @@ fn parse_msg(msg: &str) -> Option<Msg> {
 }
 
 fn main() -> Result<(), std::io::Error> {
+    let args: Vec<String> = std::env::args().collect();
+    let program = &args[1];
     let subdirectories = fs::read_dir(".")?;
 
     let mut processes = std::collections::HashMap::new();
@@ -102,7 +76,8 @@ fn main() -> Result<(), std::io::Error> {
     for sub in subdirectories {
         let sub = sub?;
         let path = sub.path();
-        let process = Subprocess::new(path.to_str().unwrap().to_string())?;
+        let mut process = Subprocess::new(path.to_str().unwrap().to_string())?;
+        process.start(&program)?;
         if let Some(name) = path.file_name() {
             processes.insert(name.to_str().unwrap().to_string(), process);
         }
@@ -123,7 +98,7 @@ fn main() -> Result<(), std::io::Error> {
                 match sub {
                     Some(sub) => {
                         if msg.command == "restart" {
-                            sub.start()?;
+                            sub.start(program)?;
                         } else {
                             println!("recieved unusual command: {}", msg.command)
                         }
