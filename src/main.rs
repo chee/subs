@@ -1,13 +1,10 @@
-extern crate tokio;
 extern crate regex;
 
 use std::os::unix::prelude::*;
-use std::env;
 use std::fs;
-//use tokio::net::{UnixListener, UnixStream};
-use tokio::prelude::*;
 use std::process::{Command, Child};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::UnixListener;
+use std::io::Read;
 use regex::Regex;
 
 fn run_npm_command (cmd: &str, path: &str, uid: u32, gid: u32) -> Result<Child, std::io::Error> {
@@ -84,8 +81,7 @@ fn parse_msg (msg: &str) -> Option<Msg> {
 }
 
 fn main() -> Result<(), std::io::Error> {
-	let args: Vec<String> = env::args().collect();
-	let subdirectories = fs::read_dir("./test")?;
+	let subdirectories = fs::read_dir(".")?;
 
 	let mut processes = std::collections::HashMap::new();
 
