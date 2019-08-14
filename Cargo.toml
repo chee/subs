@@ -1,7 +1,9 @@
 [package]
 authors = ["chee <chee@snoot.club>"]
 edition = "2018"
-name = "process-manager"
+name = "subsock"
 version = "0.1.0"
+
 [dependencies]
+getopts = "0.2"
 regex = "1"
