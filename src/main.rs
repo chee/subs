@@ -74,8 +74,12 @@ fn main() -> Result<(), std::io::Error> {
     let mut processes = std::collections::HashMap::new();
 
     for sub in subdirectories {
-        let sub = sub?;
+        let sub: fs::DirEntry = sub?;
         let path = sub.path();
+        if !path.is_dir() {
+            println!("Ignoring non-directory: {:?}", path);
+            continue;
+        }
         let mut process = Subprocess::new(path.to_str().unwrap().to_string())?;
         process.start(&program)?;
         if let Some(name) = path.file_name() {
