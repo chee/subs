@@ -1,0 +1,16 @@
+{
+	"name": "five",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"start": "micro -l unix:sock"
+	},
+	"keywords": [],
+	"author": "chee <chee@snoot.club>",
+	"license": "ISC",
+	"dependencies": {
+		"micro": "^9.3.4"
+	}
+}
