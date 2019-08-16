@@ -1,19 +1,22 @@
 # subsock
 
-Run a command simultaneously in every subdirectory, and manage with a socket.
+Run a command simultaneously in every subdirectory, with optional process management.
 
 ```
-Usage: target/debug/subsock [options] PROGRAM [root_dir]
+Usage: target/debug/subs [options] PROGRAM [root_dir]
 
 Options:
-    -s, --socket NAME   set the socket path. [default: subsocket]
-    -S, --no-socket     do not create a socket
+    -t, --type TYPE     set the management type [choices: watch, socket, none]
+                        [default: none]
+    -s, --socket NAME   set the socket path. sending the socket a message like
+                        "restart xxx" will restart the process running in the
+                        directory "xxx". [default: ./subsocket]
+    -i, --watch-ignore PATTERN
+                        pattern to ignore when watching (matches whole path)
     -h, --help          get help
 
 PROGRAM will be run in parallel in every subdirectory (SUB), as SUB's owner.
-A placeholder '{}' is available to PROGRAM, it will be replaced with SUB.
-A socket will be created.
-Sending the socket a message like 'restart SUB' will restart that SUB's process.
+A placeholder "{}" is available to PROGRAM, it will be replaced with SUB.
 ```
 
 keep your subs happy
