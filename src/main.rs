@@ -235,9 +235,6 @@ fn main() -> Result<(), std::io::Error> {
                         notify::DebouncedEvent::NoticeWrite(path) => {
                             handle_change(path, watch_ignore.as_ref())
                         }
-                        notify::DebouncedEvent::NoticeRemove(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
                         notify::DebouncedEvent::Create(path) => {
                             handle_change(path, watch_ignore.as_ref())
                         }
@@ -247,19 +244,25 @@ fn main() -> Result<(), std::io::Error> {
                         notify::DebouncedEvent::Chmod(path) => {
                             handle_change(path, watch_ignore.as_ref())
                         }
-                        notify::DebouncedEvent::Remove(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
-                        notify::DebouncedEvent::Rename(path, _path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
+                        // TODO: figure out how to handle remove,rename
+                        // notify::DebouncedEvent::Remove(path) => {
+                        //     handle_change(path, watch_ignore.as_ref())
+                        // }
+                        // notify::DebouncedEvent::Rename(path, _path) => {
+                        //     handle_change(path, watch_ignore.as_ref())
+                        // }
+                        // notify::DebouncedEvent::NoticeRemove(path) => {
+                        //     handle_change(path, watch_ignore.as_ref())
+                        // }
                         _ => None,
                     };
                     match changed_path {
                         Some(path) => {
                             // this whole bit is a big ol' yeet
+                            let canonical_path = path.canonicalize().unwrap();
                             let root_dir_path = std::path::Path::new(&root_dir).canonicalize();
-                            let changed_file = path.strip_prefix(root_dir_path.unwrap());
+
+                            let changed_file = canonical_path.strip_prefix(root_dir_path.unwrap());
                             let changed_sub = changed_file
                                 .unwrap()
                                 .components()
@@ -288,6 +291,7 @@ fn main() -> Result<(), std::io::Error> {
         Manager::Socket => {
             fs::remove_file(&options.sock_path).unwrap_or_default();
             let sock = UnixListener::bind(&options.sock_path)?;
+            // TODO use tokio
             for stream in sock.incoming() {
                 let mut buf = vec![];
                 stream?.read_to_end(&mut buf)?;
