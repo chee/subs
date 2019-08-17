@@ -4,15 +4,15 @@ extern crate notify;
 extern crate regex;
 extern crate tokio;
 
-use futures::Stream;
+use futures::{IntoFuture, Stream};
 use notify::{watcher, RecursiveMode, Watcher};
 use regex::Regex;
 use std::fs;
-use std::io::prelude::*;
-use std::os::unix::net::UnixListener;
+use std::io::Read;
 use std::os::unix::prelude::*;
 use std::process::{Child, Command};
 use std::time::Duration;
+use tokio::net::UnixListener;
 
 struct Subprocess {
     uid: u32,
@@ -291,10 +291,9 @@ fn main() -> Result<(), std::io::Error> {
         Manager::Socket => {
             fs::remove_file(&options.sock_path).unwrap_or_default();
             let sock = UnixListener::bind(&options.sock_path)?;
-            // TODO use tokio
-            for stream in sock.incoming() {
+            let sock_stream = sock.incoming().for_each(|mut stream| {
                 let mut buf = vec![];
-                stream?.read_to_end(&mut buf)?;
+                stream.read_to_end(&mut buf)?;
                 let string = String::from_utf8(buf).unwrap();
                 let msg = parse_msg(string.as_str());
                 match msg {
@@ -316,7 +315,9 @@ fn main() -> Result<(), std::io::Error> {
                         string
                     ),
                 }
-            }
+                Ok(())
+            });
+            tokio::run(sock_stream.into_future().and_then(|| {}));
             fs::remove_file(&options.sock_path).unwrap_or_default();
         }
         Manager::None => {
