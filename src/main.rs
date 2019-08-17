@@ -1,20 +1,16 @@
-extern crate futures;
 extern crate getopts;
 extern crate notify;
 extern crate regex;
-extern crate tokio;
 
-use futures::{IntoFuture, Stream};
-use notify::{watcher, RecursiveMode, Watcher};
 use regex::Regex;
 use std::fs;
-use std::io::Read;
 use std::os::unix::prelude::*;
 use std::process::{Child, Command};
-use std::time::Duration;
-use tokio::net::UnixListener;
 
-struct Subprocess {
+mod socket;
+mod watch;
+
+pub struct Subprocess {
     uid: u32,
     gid: u32,
     dir: String,
@@ -54,25 +50,6 @@ impl Subprocess {
     }
 }
 
-struct Msg<'a> {
-    command: &'a str,
-    sub: &'a str,
-}
-
-fn parse_msg(msg: &str) -> Option<Msg> {
-    let msg_regex = Regex::new(r"(\S+) (\S+)").unwrap();
-    msg_regex.captures(msg).map(|capture| {
-        let groups = (capture.get(1), capture.get(2));
-        match groups {
-            (Some(command), Some(name)) => Some(Msg {
-                command: command.as_str(),
-                sub: name.as_str(),
-            }),
-            _ => None,
-        }
-    })?
-}
-
 fn print_usage(dollar0: &str, opts: getopts::Options) {
     let brief = format!("Usage: {} [options] PROGRAM [root_dir]", dollar0);
     println!("{}", opts.usage(&brief));
@@ -80,13 +57,13 @@ fn print_usage(dollar0: &str, opts: getopts::Options) {
     println!("A placeholder \"{{}}\" is available to PROGRAM, it will be replaced with SUB.");
 }
 
-enum Manager {
+pub enum Manager {
     Watch,
     Socket,
     None,
 }
 
-struct Options {
+pub struct Options {
     sock_path: String,
     program: String,
     root_dir: String,
@@ -166,31 +143,13 @@ fn get_options() -> Options {
     }
 }
 
-fn get_watcher(root_dir: String) -> futures::sync::mpsc::UnboundedReceiver<notify::DebouncedEvent> {
-    let (ss, sr) = std::sync::mpsc::channel();
-    let (snd, rcv) = futures::sync::mpsc::unbounded();
-    std::thread::spawn(move || {
-        let mut watcher = watcher(ss, Duration::from_secs(1)).unwrap();
-        watcher.watch(&root_dir, RecursiveMode::Recursive).unwrap();
-        loop {
-            match sr.recv() {
-                Ok(event) => {
-                    snd.unbounded_send(event).unwrap();
-                }
-                Err(error) => {
-                    panic!("yeet! {:?}", error);
-                }
-            }
-        }
-    });
-    rcv
-}
+pub type Processes = std::collections::HashMap<String, Subprocess>;
 
 fn main() -> Result<(), std::io::Error> {
     let options = get_options();
     let subdirectories = fs::read_dir(&options.root_dir)?;
 
-    let mut processes = std::collections::HashMap::new();
+    let mut processes: Processes = std::collections::HashMap::new();
 
     for sub in subdirectories {
         let sub: fs::DirEntry = sub?;
@@ -208,118 +167,8 @@ fn main() -> Result<(), std::io::Error> {
     }
 
     match options.management {
-        Manager::Watch => {
-            fn handle_change(
-                pathbuf: std::path::PathBuf,
-                ignore: Option<&Regex>,
-            ) -> Option<std::path::PathBuf> {
-                let did_change = match ignore {
-                    Some(regex) => !regex.is_match(pathbuf.to_str().unwrap()),
-                    None => true,
-                };
-
-                if did_change {
-                    Some(pathbuf)
-                } else {
-                    None
-                }
-            }
-
-            // pulling this off so it can be owned by tokio
-            let watch_ignore = options.watch_ignore.clone();
-            let root_dir = options.root_dir.clone();
-
-            tokio::run(
-                get_watcher(options.root_dir.to_string()).for_each(move |event| {
-                    let changed_path = match event {
-                        notify::DebouncedEvent::NoticeWrite(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
-                        notify::DebouncedEvent::Create(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
-                        notify::DebouncedEvent::Write(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
-                        notify::DebouncedEvent::Chmod(path) => {
-                            handle_change(path, watch_ignore.as_ref())
-                        }
-                        // TODO: figure out how to handle remove,rename
-                        // notify::DebouncedEvent::Remove(path) => {
-                        //     handle_change(path, watch_ignore.as_ref())
-                        // }
-                        // notify::DebouncedEvent::Rename(path, _path) => {
-                        //     handle_change(path, watch_ignore.as_ref())
-                        // }
-                        // notify::DebouncedEvent::NoticeRemove(path) => {
-                        //     handle_change(path, watch_ignore.as_ref())
-                        // }
-                        _ => None,
-                    };
-                    match changed_path {
-                        Some(path) => {
-                            // this whole bit is a big ol' yeet
-                            let canonical_path = path.canonicalize().unwrap();
-                            let root_dir_path = std::path::Path::new(&root_dir).canonicalize();
-
-                            let changed_file = canonical_path.strip_prefix(root_dir_path.unwrap());
-                            let changed_sub = changed_file
-                                .unwrap()
-                                .components()
-                                .next()
-                                .unwrap()
-                                .as_os_str()
-                                .to_str()
-                                .unwrap();
-                            let sub = processes.get_mut(changed_sub);
-                            match sub {
-                                Some(sub) => sub
-                                    .start(&options.program)
-                                    .expect("tried to restart and failed"),
-                                None => println!(
-                                    "received news about {}, but i'm not following them?",
-                                    changed_sub
-                                ),
-                            }
-                            Ok(())
-                        }
-                        None => Ok(()),
-                    }
-                }),
-            )
-        }
-        Manager::Socket => {
-            fs::remove_file(&options.sock_path).unwrap_or_default();
-            let sock = UnixListener::bind(&options.sock_path)?;
-            let sock_stream = sock.incoming().for_each(|mut stream| {
-                let mut buf = vec![];
-                stream.read_to_end(&mut buf)?;
-                let string = String::from_utf8(buf).unwrap();
-                let msg = parse_msg(string.as_str());
-                match msg {
-                    Some(msg) => {
-                        let sub = processes.get_mut(msg.sub);
-                        match sub {
-                            Some(sub) => {
-                                if msg.command == "restart" {
-                                    sub.start(&options.program)?;
-                                } else {
-                                    println!("recieved unusual command: {}", msg.command)
-                                }
-                            }
-                            None => println!("recieved unusual person: {}", msg.sub),
-                        }
-                    }
-                    None => println!(
-                        "recieved unusual message. message should be <command> <sub>. got: {}",
-                        string
-                    ),
-                }
-                Ok(())
-            });
-            tokio::run(sock_stream.into_future().and_then(|| {}));
-            fs::remove_file(&options.sock_path).unwrap_or_default();
-        }
+        Manager::Watch => watch::manage(processes, options),
+        Manager::Socket => socket::manage(processes, options)?,
         Manager::None => {
             for sub in processes.values_mut() {
                 if let Some(process) = &mut sub.process {
