@@ -1,3 +1,4 @@
+use crate::subprocesses::Processes;
 use regex::Regex;
 use std::fs;
 use std::io::Read;
@@ -23,8 +24,8 @@ fn parse_msg(msg: &str) -> Option<Msg> {
 }
 
 pub fn manage(
-    mut processes: super::Processes,
-    options: super::Options,
+    mut processes: Processes,
+    options: crate::options::Options,
 ) -> Result<(), std::io::Error> {
     let sock_path = options.sock_path.clone();
     fs::remove_file(&sock_path).unwrap_or_default();

@@ -1,3 +1,4 @@
+use crate::subprocesses::Processes;
 use notify::{watcher, RecursiveMode, Watcher};
 use regex::Regex;
 use std::time::Duration;
@@ -18,7 +19,7 @@ fn handle_change(
     }
 }
 
-pub fn manage(mut processes: super::Processes, options: super::Options) {
+pub fn manage(mut processes: Processes, options: crate::options::Options) {
     let (sender, receiver) = std::sync::mpsc::channel();
 
     let mut watcher = watcher(sender, Duration::from_secs(2)).unwrap();
