@@ -4,7 +4,7 @@ license = "GPL-3.0+"
 authors = ["chee <chee@snoot.club>"]
 edition = "2018"
 name = "subs"
-version = "0.1.5"
+version = "0.1.6"
 repository = "https://git.snoot.club/chee/subs"
 readme = "README.md"
 

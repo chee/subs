@@ -1,4 +1,4 @@
-# subsock
+# subs
 
 Run a command simultaneously in every subdirectory, with optional process management.
 
