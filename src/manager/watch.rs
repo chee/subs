@@ -52,27 +52,36 @@ pub fn manage(mut processes: Processes, options: crate::options::Options) {
                 match changed_path {
                     Some(path) => {
                         // this whole bit is a big ol' yeet
-                        let canonical_path = path.canonicalize().unwrap();
+                        let canonical_path = path.canonicalize();
+                        if canonical_path.is_err() {
+                            return;
+                        }
+                        let canonical_path = canonical_path.unwrap();
                         let root_dir_path = std::path::Path::new(&options.root_dir).canonicalize();
-
-                        let changed_file = canonical_path.strip_prefix(root_dir_path.unwrap());
-                        let changed_sub = changed_file
-                            .unwrap()
-                            .components()
-                            .next()
-                            .unwrap()
-                            .as_os_str()
-                            .to_str()
-                            .unwrap();
-                        let sub = processes.get_mut(changed_sub);
-                        match sub {
-                            Some(sub) => sub
-                                .start(&options.program)
-                                .expect("tried to restart and failed"),
-                            None => println!(
-                                "received news about {}, but i'm not following them?",
-                                changed_sub
-                            ),
+                        if root_dir_path.is_err() {
+                            return;
+                        }
+                        let root_dir_path = root_dir_path.unwrap();
+                        let changed_file = canonical_path.strip_prefix(&root_dir_path);
+                        if let Ok(file) = changed_file {
+                            if let Some(first) = file.components().next() {
+                                if let Some(name) = first.as_os_str().to_str() {
+                                    let sub = processes.get_mut(name);
+                                    match sub {
+                                        Some(sub) => sub
+                                            .start(&options.program)
+                                            .expect("tried to restart and failed"),
+                                        None => println!(
+                                            "received news about {}, but i'm not following them?",
+                                            name
+                                        ),
+                                    }
+                                } else {
+                                    println!("{:?} is not valid utf-8", first)
+                                }
+                            } else {
+                                println!("{:?} was not under {:?}. ignoring", file, root_dir_path)
+                            }
                         }
                     }
                     None => (),
