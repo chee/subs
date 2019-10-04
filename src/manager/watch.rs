@@ -3,7 +3,7 @@ use notify::{watcher, RecursiveMode, Watcher};
 use regex::Regex;
 use std::time::Duration;
 
-fn handle_change(
+fn match_watched_file(
     pathbuf: std::path::PathBuf,
     ignore: Option<&Regex>,
 ) -> Option<std::path::PathBuf> {
@@ -14,6 +14,17 @@ fn handle_change(
 
     if did_change {
         Some(pathbuf)
+    } else {
+        None
+    }
+}
+
+fn match_watched_parent(
+    pathbuf: std::path::PathBuf,
+    ignore: Option<&Regex>,
+) -> Option<std::path::PathBuf> {
+    if let Some(parent) = pathbuf.parent() {
+        match_watched_file(parent.to_owned(), ignore)
     } else {
         None
     }
@@ -32,21 +43,26 @@ pub fn manage(mut processes: Processes, options: crate::options::Options) {
             Ok(event) => {
                 let changed_path = match event {
                     notify::DebouncedEvent::NoticeWrite(path) => {
-                        handle_change(path, options.watch_ignore.as_ref())
+                        match_watched_file(path, options.watch_ignore.as_ref())
                     }
                     notify::DebouncedEvent::Create(path) => {
-                        handle_change(path, options.watch_ignore.as_ref())
+                        match_watched_file(path, options.watch_ignore.as_ref())
                     }
                     notify::DebouncedEvent::Write(path) => {
-                        handle_change(path, options.watch_ignore.as_ref())
+                        match_watched_file(path, options.watch_ignore.as_ref())
                     }
                     notify::DebouncedEvent::Chmod(path) => {
-                        handle_change(path, options.watch_ignore.as_ref())
+                        match_watched_file(path, options.watch_ignore.as_ref())
                     }
-                    // TODO: figure out how to handle remove,rename
-                    // notify::DebouncedEvent::Remove(path) => {}
-                    // notify::DebouncedEvent::Rename(path, _path) => {}
-                    // notify::DebouncedEvent::NoticeRemove(path) => {}
+                    notify::DebouncedEvent::Remove(path) => {
+                        match_watched_parent(path, options.watch_ignore.as_ref())
+                    }
+                    notify::DebouncedEvent::Rename(_from, to) => {
+                        match_watched_file(to, options.watch_ignore.as_ref())
+                    }
+                    notify::DebouncedEvent::NoticeRemove(path) => {
+                        match_watched_parent(path, options.watch_ignore.as_ref())
+                    }
                     _ => None,
                 };
                 match changed_path {
