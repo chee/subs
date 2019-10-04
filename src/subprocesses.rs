@@ -57,7 +57,7 @@ pub fn start(options: &crate::options::Options) -> Result<Processes, std::io::Er
         let sub: DirEntry = sub?;
         let path = sub.path();
         if !path.is_dir() {
-            println!("Ignoring non-directory: {:?}", path);
+            eprintln!("Ignoring non-directory: {:?}", path);
             continue;
         }
         let mut process = Subprocess::new(&path)?;

@@ -66,21 +66,22 @@ pub fn manage(mut processes: Processes, options: crate::options::Options) {
                         if let Ok(file) = changed_file {
                             if let Some(first) = file.components().next() {
                                 if let Some(name) = first.as_os_str().to_str() {
+                                    eprintln!("Restarting {} because {:?} changed", name, file);
                                     let sub = processes.get_mut(name);
                                     match sub {
                                         Some(sub) => sub
                                             .start(&options.program)
                                             .expect("tried to restart and failed"),
-                                        None => println!(
+                                        None => eprintln!(
                                             "received news about {}, but i'm not following them?",
                                             name
                                         ),
                                     }
                                 } else {
-                                    println!("{:?} is not valid utf-8", first)
+                                    eprintln!("{:?} is not valid utf-8", first)
                                 }
                             } else {
-                                println!("{:?} was not under {:?}. ignoring", file, root_dir_path)
+                                eprintln!("{:?} was not under {:?}. ignoring", file, root_dir_path)
                             }
                         }
                     }
@@ -88,7 +89,7 @@ pub fn manage(mut processes: Processes, options: crate::options::Options) {
                 }
             }
             Err(error) => {
-                println!("yeet! {:?}", error);
+                eprintln!("yeet! {:?}", error);
             }
         }
     }

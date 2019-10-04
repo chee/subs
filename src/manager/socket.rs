@@ -43,13 +43,13 @@ pub fn manage(
                         if msg.command == "restart" {
                             sub.start(&options.program)?;
                         } else {
-                            println!("recieved unusual command: {}", msg.command)
+                            eprintln!("recieved unusual command: {}", msg.command)
                         }
                     }
-                    None => println!("recieved unusual person: {}", msg.sub),
+                    None => eprintln!("recieved unusual person: {}", msg.sub),
                 }
             }
-            None => println!(
+            None => eprintln!(
                 "recieved unusual message. message should be <command> <sub>. got: {}",
                 string
             ),
