@@ -8,7 +8,7 @@
 		"start": "micro -l unix:sock"
 	},
 	"keywords": [],
-	"author": "chee <chee@snoot.club>",
+	"author": "chee <yay@chee.party>",
 	"license": "ISC",
 	"dependencies": {
 		"micro": "^9.3.4"

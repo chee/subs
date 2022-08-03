@@ -1,11 +1,11 @@
 [package]
 description = "Run a command simultaneously in every subdirectory, and manage with a socket."
 license = "GPL-3.0+"
-authors = ["chee <chee@snoot.club>"]
+authors = ["chee <yay@chee.party>"]
 edition = "2018"
 name = "subs"
 version = "0.2.0"
-repository = "https://git.snoot.club/chee/subs"
+repository = "https://github.com/chee/subs"
 readme = "README.md"
 
 [dependencies]
